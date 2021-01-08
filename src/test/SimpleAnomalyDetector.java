@@ -69,7 +69,7 @@ public class SimpleAnomalyDetector implements TimeSeriesAnomalyDetector {
                 if (StatLib.dev(p, f.lin_reg) > f.threshold) {
                     AnomalyReport ar = new AnomalyReport(f1 + "-" + f2, i + 1);
                     ars.add(ar);
-                    break;
+//                    break;
                 }
             }
 
