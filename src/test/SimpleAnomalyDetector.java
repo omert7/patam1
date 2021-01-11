@@ -15,7 +15,6 @@ public class SimpleAnomalyDetector implements TimeSeriesAnomalyDetector {
     @Override
     public void learnNormal(TimeSeries ts) {
         cfs.clear();
-        ts.init();
         ArrayList<String> listOfFeatures = ts.csvColumns;
         for (String f : listOfFeatures) {
             for (String f2 : listOfFeatures) {
@@ -23,8 +22,7 @@ public class SimpleAnomalyDetector implements TimeSeriesAnomalyDetector {
                     float[] f_arr = ts.getColumnValuesInArray(f);
                     float[] f2_arr = ts.getColumnValuesInArray(f2);
                     float f_correlation = StatLib.pearson(f_arr, f2_arr);
-
-                    if (f_correlation > 0.9) {
+                    if (f_correlation > ts.correlation_threshold) {
 
                         Point[] points = new Point[f_arr.length];
                         for (int i = 0; i < f_arr.length; i++) {
@@ -54,7 +52,6 @@ public class SimpleAnomalyDetector implements TimeSeriesAnomalyDetector {
     @Override
     public List<AnomalyReport> detect(TimeSeries ts) {
         ars.clear();
-        ts.init();
 
         String timeColumn = ts.csvColumns.get(0);
         for (CorrelatedFeatures f : cfs) {

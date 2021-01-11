@@ -3,22 +3,30 @@ package test;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.security.Key;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TimeSeries {
     String csv;
 
     ArrayList<String> csvColumns;
     Map<String, ArrayList<Float>> csvRows;
+    float correlation_threshold = (float) 0.9;
 
     public TimeSeries(String csvFileName) {
         this.csv = csvFileName;
         this.csvColumns = new ArrayList<>();
         this.csvRows = new LinkedHashMap<>();
-
+        this.init();
     }
+
+    public TimeSeries(String csvFileName, float ct) {
+        this.csv = csvFileName;
+        this.csvColumns = new ArrayList<>();
+        this.csvRows = new LinkedHashMap<>();
+        this.correlation_threshold = ct;
+        this.init();
+    }
+
 
     public void initColumnNames() {
         try {
@@ -26,12 +34,14 @@ public class TimeSeries {
             String header = br.readLine();
             if (header != null) {
                 String[] columns = header.split(",");
-                csvColumns.addAll(Arrays.asList(columns));
+                this.csvColumns.addAll(Arrays.asList(columns));
             }
 
         } catch (Exception e) {
             System.out.println(e);
         }
+
+
     }
 
     public void initRows() {

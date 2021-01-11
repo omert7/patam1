@@ -1,12 +1,9 @@
 package test;
 
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 
 public class Commands {
 
@@ -39,12 +36,12 @@ public class Commands {
         // implement here whatever you need
         String trainFile;
         String testFile;
+        int n;
         List<AnomalyReport> areport;
         float threashold = (float) 0.9;
     }
 
     private SharedState sharedState = new SharedState();
-
 
     // Command abstract class
     public abstract class Command {
@@ -56,21 +53,6 @@ public class Commands {
 
         public abstract void execute();
     }
-
-    // Command class for example:
-    public class ExampleCommand extends Command {
-
-        public ExampleCommand() {
-            super("this is an example of command");
-        }
-
-        @Override
-        public void execute() {
-            dio.write(description);
-        }
-    }
-
-    // implement here all other commands
 
     public class MenuCommand extends Command {
 
@@ -98,7 +80,7 @@ public class Commands {
 
         @Override
         public void execute() {
-            this.getFile("train");
+            this.getFile("Train");
             this.getFile("Test");
         }
 
@@ -106,35 +88,34 @@ public class Commands {
             try {
                 FileWriter fileWriter = new FileWriter(csvFile);
                 String v = dio.readText();
+
                 while (!v.equals("done")) {
                     fileWriter.write(v);
                     fileWriter.write("\n");
                     fileWriter.flush();
                     v = dio.readText();
                 }
+
                 fileWriter.close();
             } catch (IOException e) {
                 System.out.println("An error occurred.");
                 e.printStackTrace();
             }
-
         }
 
         public void getFile(String file) {
-            PreUploadFile preUploadFile = new PreUploadFile(file);
             String csvFile = "anomaly" + file + ".csv";
+            PreUploadFile preUploadFile = new PreUploadFile(file.toLowerCase() + " CSV");
             preUploadFile.execute();
             this.readAndWriteToCSV(csvFile);
-            PostUploadFile postUploadFile = new PostUploadFile();
-            postUploadFile.execute();
-
+            new PostUploadFile().execute();
         }
     }
 
     public class PreUploadFile extends Command {
 
         public PreUploadFile(String fileMode) {
-            super("please upload your local " + fileMode + " CSV file.\n");
+            super("Please upload your local " + fileMode + " file.\n");
         }
 
         @Override
@@ -168,7 +149,7 @@ public class Commands {
                     "Type a new threshold\n";
             dio.write(firstMessage);
             String v = dio.readText();
-            while(Float.parseFloat(v)>1 || Float.parseFloat(v) <0){
+            while (Float.parseFloat(v) > 1 || Float.parseFloat(v) < 0) {
                 dio.write("please choose a value between 0 and 1.");
                 v = dio.readText();
             }
@@ -176,19 +157,32 @@ public class Commands {
         }
     }
 
-    public class RunDetectCommand extends Command{
+    public class RunDetectCommand extends Command {
         public RunDetectCommand() {
             super("Detection.\n");
+        }
+
+        public void CalcRowNum(String fileName) {
+            try {
+                BufferedReader reader = new BufferedReader(new FileReader(fileName));
+                int lines = 0;
+                while (reader.readLine() != null) lines++;
+                reader.close();
+                sharedState.n = lines - 1;
+            } catch (IOException e) {
+                System.out.println("An error occurred.");
+                e.printStackTrace();
+            }
         }
 
         @Override
         public void execute() {
             SimpleAnomalyDetector sad = new SimpleAnomalyDetector();
-            sad.learnNormal(new TimeSeries("anomalyTrain.csv"));
-            sharedState.areport =  sad.detect(new TimeSeries("anomalyTest.csv"));
+            sad.learnNormal(new TimeSeries("anomalyTrain.csv", sharedState.threashold));
+            sharedState.areport = sad.detect(new TimeSeries("anomalyTest.csv"));
+            this.CalcRowNum("anomalyTest.csv");
             dio.write("anomaly detection complete.\n");
         }
-
     }
 
     public class DisplayReports extends Command {
@@ -198,7 +192,7 @@ public class Commands {
 
         @Override
         public void execute() {
-            for(AnomalyReport ar: sharedState.areport){
+            for (AnomalyReport ar : sharedState.areport) {
                 String line = ar.timeStep + "\t" + ar.description;
                 dio.write(line + '\n');
             }
@@ -206,13 +200,120 @@ public class Commands {
         }
     }
 
-    public class AnomaliesAnalayze extends Command{
-        AnomaliesAnalayze(){
+    public class AnomaliesAnalayze extends Command {
+
+        AnomaliesAnalayze() {
             super("AnomaliesAnalayze");
+
+        }
+
+        public ArrayList<ArrayList<Integer>> getServerAnomaliesInArray() {
+            ArrayList<ArrayList<Integer>> server_arrs = new ArrayList<>();
+            ArrayList<Integer> serv_arr = new ArrayList<>();
+
+            for (AnomalyReport ar : sharedState.areport) {
+                if (sharedState.areport.indexOf(ar) == 0) {
+                    serv_arr.add((int) ar.timeStep);
+                    if (sharedState.areport.indexOf(ar) == sharedState.areport.size() - 1) {
+                        server_arrs.add(serv_arr);
+                    }
+
+
+                } else if (sharedState.areport.get(sharedState.areport.indexOf(ar) - 1).timeStep + 1 == ar.timeStep) {
+                    serv_arr.add((int) ar.timeStep);
+                    if (sharedState.areport.indexOf(ar) == sharedState.areport.size() - 1) {
+                        server_arrs.add(serv_arr);
+                    }
+
+                } else {
+                    server_arrs.add(serv_arr);
+                    serv_arr = new ArrayList<>();
+                    serv_arr.add((int) ar.timeStep);
+                    if (sharedState.areport.indexOf(ar) == sharedState.areport.size() - 1) {
+                        server_arrs.add(serv_arr);
+                    }
+
+                }
+
+            }
+            return server_arrs;
+        }
+
+        public int calculateTP(ArrayList<ArrayList<Integer>> user_arrs, ArrayList<ArrayList<Integer>> servers_anomalies) {
+            int TP = 0;
+            for (ArrayList<Integer> ua : user_arrs) {
+                for (int val : ua) {
+                    boolean flag = false;
+                    for (ArrayList<Integer> sa : servers_anomalies) {
+                        if (sa.contains(val)) {
+                            TP++;
+                            flag = true;
+                            break;
+                        }
+                    }
+                    if (flag)
+                        break;
+                }
+            }
+            return TP;
+        }
+
+        public int calculateFP(ArrayList<ArrayList<Integer>> user_arrs, ArrayList<ArrayList<Integer>> servers_anomalies) {
+            int FP = 0;
+            boolean flag;
+            for (ArrayList<Integer> ua : servers_anomalies) {
+                flag = false;
+                for (int val : ua) {
+                    for (ArrayList<Integer> sa : user_arrs) {
+                        if (sa.contains(val)) {
+                            flag = true;
+                            break;
+                        }
+                    }
+                    if (flag)
+                        break;
+
+                }
+
+                if (!flag)
+                    FP++;
+            }
+            return FP;
         }
 
         @Override
         public void execute() {
+            int p = 0;
+            int N = sharedState.n;
+
+            PreUploadFile preUploadFile = new PreUploadFile("anomalies");
+            preUploadFile.execute();
+            String v = dio.readText();
+            ArrayList<ArrayList<Integer>> servers_anomalies = getServerAnomaliesInArray();
+
+            ArrayList<ArrayList<Integer>> user_arrs = new ArrayList<>();
+            while (!v.equals("done")) {
+                ArrayList<Integer> arr = new ArrayList<>();
+                p++;
+                String str[] = v.split(",", 2);
+                int firstNum = Integer.parseInt(str[0]);
+                int secondNum = Integer.parseInt(str[1]);
+                for (int i = firstNum; i <= secondNum; i++) {
+                    arr.add(i);
+                }
+                N -= (secondNum - firstNum) + 1;
+                user_arrs.add(arr);
+                v = dio.readText();
+            }
+
+            int TP = calculateTP(user_arrs, servers_anomalies);
+            int FP = calculateFP(user_arrs, servers_anomalies);
+            double tp_rate = Math.floor((double) TP / p * 1000) / 1000;
+            double fp_rate = Math.floor((double) FP / N * 1000) / 1000;
+            new PostUploadFile().execute();
+//                    dio.write("Analyzing...\n");
+            dio.write("True Positive Rate: " + tp_rate + '\n');
+            dio.write("False Positive Rate: " + fp_rate + '\n');
 
         }
     }
