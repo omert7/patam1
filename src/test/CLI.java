@@ -24,10 +24,6 @@ public class CLI {
         commands.add(c.new DisplayReports());
         commands.add(c.new AnomaliesAnalayze());
 
-
-        //        this.commands = new HashMap<>();
-        //         example: commands.add(c.new ExampleCommand());
-        // implement
     }
 
     public void start() {
@@ -35,8 +31,10 @@ public class CLI {
         String value = dio.readText();
         int v = Integer.parseInt(value);
         while (1 <= v && v <= 6) {
-            if (v == 6)
+            if (v == 6) {
+                dio.write("bye\n");
                 break;
+            }
             commands.get(v).execute();
             commands.get(0).execute();
             v = Integer.parseInt(dio.readText());
